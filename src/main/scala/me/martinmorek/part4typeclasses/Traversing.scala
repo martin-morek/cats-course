@@ -1,6 +1,6 @@
 package me.martinmorek.part4typeclasses
 
-import cats.{Applicative, Monad}
+import cats.{Applicative, Foldable, Functor, Monad}
 
 import java.util.concurrent.Executors
 import scala.concurrent.{ExecutionContext, Future}
@@ -59,12 +59,54 @@ object Traversing {
 
   // TODO 3:
   import cats.instances.vector._
-  listSequence(List(Vector(1,2), Vector(3,4)))
-  listSequence(List(Vector(1,2), Vector(3,4), Vector(5,6)))
+  val allPairs = listSequence(List(Vector(1,2), Vector(3,4)))
+  val allTriples = listSequence(List(Vector(1,2), Vector(3,4), Vector(5,6)))
 
+  import cats.instances.option._
+  def filerAsOption(list: List[Int])(predicate: Int => Boolean): Option[List[Int]] =
+    listTraverseWithApply[Option, Int, Int](list)(n => Some(n).filter(predicate))
+
+  // TODO 4:
+  val allTrue = filerAsOption(List(2,4,6))(_ % 2 == 0)
+  val someFalse = filerAsOption(List(1,2,3))(_ % 2 == 0)
+
+  import cats.data.Validated
+  import cats.instances.list._
+
+  type ErrorsOr[T] = Validated[List[String], T]
+  def filterAsValidated(list: List[Int])(predicate: Int => Boolean): ErrorsOr[List[Int]] =
+    listTraverseWithApply[ErrorsOr, Int, Int](list){ n =>
+      if(predicate(n)) Validated.valid(n)
+      else Validated.invalid(List(s"predicate for $n failed"))
+    }
+
+  // TODO 5:
+  val allTrueValidated = filterAsValidated(List(2,4,6))(_ % 2 == 0)
+  val someFalseValidated = filterAsValidated(List(1,2,3))(_ % 2 == 0)
+
+  trait MyTraverse[L[_]] extends Foldable[L] with Functor[L]{
+    def traverse[F[_]: Applicative, A, B](container: L[A])(func: A => F[B]): F[L[B]]
+    def sequence[F[_]: Applicative, A](container: L[F[A]]): F[L[A]] = traverse(container)(identity)
+
+    // TODO 6:
+    import cats.Id
+    def map[A, B](wa: L[A])(f: A => B): L[B] = traverse[Id, A, B](wa)(f)
+  }
+
+  import cats.Traverse
+  import cats.instances.future._
+  val allBandwidthsWithCats = Traverse[List].traverse(servers)(getBandwidth)
+
+  import cats.syntax.traverse._
+  val allBandwidthsWithCats2 = servers.traverse(getBandwidth)
 
   def main(args: Array[String]): Unit = {
-
+    println(allPairs)
+    println(allTriples)
+    println(allTrue)
+    println(someFalse)
+    println(allTrueValidated)
+    println(someFalseValidated)
   }
 
 }
